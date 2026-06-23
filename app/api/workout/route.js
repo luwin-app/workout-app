@@ -1,6 +1,11 @@
 export async function POST(request) {
   try {
-    const { goal, time, equipment } = await request.json();
+    const body = await request.json();
+    const { goal, time, equipment } = body;
+
+    if (!goal || !time || !Array.isArray(equipment) || equipment.length === 0) {
+      return Response.json({ error: '入力が不足しています' }, { status: 400 });
+    }
 
     const userMessage = `目標：${goal}\nトレーニング時間：${time}\n使える器具：${equipment.join('、')}`;
 
@@ -32,7 +37,7 @@ export async function POST(request) {
         'anthropic-version': '2023-06-01',
       },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-6',
+        model: 'claude-haiku-4-5-20251001',
         max_tokens: 2048,
         system: systemPrompt,
         messages: [{ role: 'user', content: userMessage }],
@@ -40,22 +45,55 @@ export async function POST(request) {
     });
 
     if (!response.ok) {
-      const error = await response.json();
-      return Response.json({ error: error.error?.message || 'APIエラーが発生しました' }, { status: response.status });
+      let errorMessage = 'APIエラーが発生しました';
+      try {
+        const errorData = await response.json();
+        errorMessage = errorData.error?.message || errorMessage;
+      } catch {
+        // response body wasn't JSON
+      }
+      console.error('Anthropic API error:', response.status, errorMessage);
+      return Response.json({ error: errorMessage }, { status: response.status });
     }
 
     const data = await response.json();
-    const content = data.content[0]?.text || '';
+    const content = data.content?.[0]?.text || '';
 
-    const parsed = JSON.parse(content);
+    const cleanContent = content
+      .replace(/```json\n?/g, '')
+      .replace(/```\n?/g, '')
+      .trim();
 
-    parsed.menu = parsed.menu.map((item) => ({
-      ...item,
-      video_url: `https://www.youtube.com/results?search_query=${encodeURIComponent(item.name_en + ' workout tutorial')}`,
-    }));
+    let parsed;
+    try {
+      parsed = JSON.parse(cleanContent);
+    } catch {
+      console.error('Failed to parse AI response:', cleanContent);
+      return Response.json({ error: 'AIの応答を解析できませんでした。もう一度お試しください。' }, { status: 500 });
+    }
+
+    parsed.target_muscles = String(parsed.target_muscles || '');
+    parsed.reason = String(parsed.reason || '');
+    parsed.total_time = String(parsed.total_time || '');
+    parsed.advice = String(parsed.advice || '');
+
+    if (Array.isArray(parsed.menu)) {
+      parsed.menu = parsed.menu.map((item) => ({
+        name: String(item.name || ''),
+        name_en: String(item.name_en || ''),
+        sets: Number(item.sets) || 3,
+        reps: String(item.reps || ''),
+        rest: String(item.rest || ''),
+        point: String(item.point || ''),
+        video_url: `https://www.youtube.com/results?search_query=${encodeURIComponent(String(item.name_en || '') + ' workout tutorial')}`,
+      }));
+    } else {
+      parsed.menu = [];
+    }
 
     return Response.json({ result: parsed });
   } catch (error) {
+    console.error('Workout API error:', error);
     return Response.json({ error: 'サーバーエラーが発生しました' }, { status: 500 });
   }
 }
