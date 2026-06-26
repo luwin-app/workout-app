@@ -2,6 +2,55 @@
 
 import { useState, useEffect } from 'react';
 
+const SITE_URL = 'https://workout-app-zeta-opal.vercel.app/';
+
+const AFFILIATE_PRODUCTS = {
+  ダンベル: [
+    { name: '可変式ダンベル', desc: '重量を素早く切り替えられ、自宅トレーニングをサポートする一台', url: '#' },
+    { name: 'トレーニンググローブ', desc: 'グリップ力を高めて手のひらを保護し、快適なトレーニングをサポート', url: '#' },
+  ],
+  バーベル: [
+    { name: 'トレーニングベルト', desc: '腰への負担を分散し、高重量トレーニングをサポート', url: '#' },
+    { name: 'バーベルパッド', desc: 'スクワット・ヒップスラストで肩や腰をやさしく保護', url: '#' },
+  ],
+  マシン: [
+    { name: 'トレーニングベルト', desc: '腰への負担を分散し、マシントレーニングをサポート', url: '#' },
+    { name: 'トレーニンググローブ', desc: 'マシンのグリップ部分での滑り止めと手のひら保護をサポート', url: '#' },
+  ],
+  自重のみ: [
+    { name: 'ヨガマット', desc: '関節への衝撃を和らげ、快適な自重トレーニング環境をサポート', url: '#' },
+    { name: 'プッシュアップバー', desc: '深い可動域で胸・肩・腕のトレーニング強度アップをサポート', url: '#' },
+  ],
+  チューブ: [
+    { name: 'トレーニングチューブセット', desc: '複数の強度から選べる、全身トレーニングをサポートするセット', url: '#' },
+    { name: 'ヨガマット', desc: '床での種目に快適な環境を提供し、トレーニングをサポート', url: '#' },
+  ],
+};
+
+const COMMON_PRODUCTS = [
+  { name: 'ホエイプロテイン', desc: 'トレーニング後の栄養補給をサポート。吸収が早くタンパク質を手軽に補える', url: '#' },
+  { name: 'BCAA', desc: '必須アミノ酸を補給し、トレーニング中のパフォーマンス維持をサポート', url: '#' },
+];
+
+function getAffiliateProducts(equipment) {
+  const specific = [];
+  for (const eq of equipment) {
+    if (AFFILIATE_PRODUCTS[eq]) specific.push(...AFFILIATE_PRODUCTS[eq]);
+  }
+  const seen = new Set();
+  const unique = specific.filter((p) => {
+    if (seen.has(p.name)) return false;
+    seen.add(p.name);
+    return true;
+  });
+  const result = unique.slice(0, 2);
+  for (const p of COMMON_PRODUCTS) {
+    if (result.length >= 3) break;
+    if (!result.find((r) => r.name === p.name)) result.push(p);
+  }
+  return result.slice(0, 3);
+}
+
 const EQUIPMENT_OPTIONS = ['自重のみ', 'ダンベル', 'バーベル', 'マシン', 'チューブ'];
 const TIME_OPTIONS = ['15分', '30分', '45分', '60分以上'];
 
@@ -80,6 +129,8 @@ export default function Home() {
   const [pressing, setPressing] = useState(false);
   const [history, setHistory] = useState([]);
   const [stats, setStats] = useState({ total: 0, thisWeek: 0, streak: 0 });
+  const [shareOpen, setShareOpen] = useState(false);
+  const [copyDone, setCopyDone] = useState(false);
 
   useEffect(() => {
     const h = loadHistory();
@@ -175,6 +226,38 @@ export default function Home() {
   const handleReset = () => {
     setResult(null);
     setError('');
+    setShareOpen(false);
+    setCopyDone(false);
+  };
+
+  const buildShareText = () =>
+    `今日のトレーニングをAIに作ってもらった💪\n今日は【${result?.target_muscles}】を鍛える日！\n#AIワークアウト #筋トレ`;
+
+  const handleShareX = () => {
+    const text = encodeURIComponent(buildShareText() + '\n' + SITE_URL);
+    window.open(`https://twitter.com/intent/tweet?text=${text}`, '_blank', 'noopener,noreferrer');
+  };
+
+  const handleShareLINE = () => {
+    const text = encodeURIComponent(buildShareText());
+    const url = encodeURIComponent(SITE_URL);
+    window.open(`https://social-plugins.line.me/lineit/share?url=${url}&text=${text}`, '_blank', 'noopener,noreferrer');
+  };
+
+  const handleCopyLink = async () => {
+    const text = buildShareText() + '\n' + SITE_URL;
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch {
+      const el = document.createElement('textarea');
+      el.value = text;
+      document.body.appendChild(el);
+      el.select();
+      document.execCommand('copy');
+      document.body.removeChild(el);
+    }
+    setCopyDone(true);
+    setTimeout(() => setCopyDone(false), 2000);
   };
 
   return (
@@ -485,13 +568,175 @@ export default function Home() {
                   <p style={{ fontSize: 15, color: '#8E8E93', margin: '10px 0 0', lineHeight: 1.5 }}>💬 {result.advice}</p>
                 </div>
 
+                {/* Affiliate Products */}
+                {(() => {
+                  const products = getAffiliateProducts(equipment);
+                  return (
+                    <div style={{ marginTop: 20 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                        <p style={{ fontSize: 13, color: '#8E8E93', margin: 0, fontWeight: 500 }}>おすすめアイテム</p>
+                        <span style={{
+                          fontSize: 10,
+                          fontWeight: 700,
+                          color: '#8E8E93',
+                          border: '1px solid #C7C7CC',
+                          borderRadius: 4,
+                          padding: '1px 5px',
+                          letterSpacing: '0.05em',
+                        }}>PR</span>
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                        {products.map((p, i) => (
+                          <div key={i} style={{
+                            backgroundColor: '#F2F2F7',
+                            borderRadius: 12,
+                            padding: '14px 16px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 12,
+                          }}>
+                            <div style={{ flex: 1 }}>
+                              <p style={{ fontSize: 15, fontWeight: 600, color: '#1C1C1E', margin: 0 }}>{p.name}</p>
+                              <p style={{ fontSize: 13, color: '#8E8E93', margin: '3px 0 0', lineHeight: 1.45 }}>{p.desc}</p>
+                            </div>
+                            <a
+                              href={p.url}
+                              style={{
+                                flexShrink: 0,
+                                padding: '7px 13px',
+                                backgroundColor: '#FFFFFF',
+                                color: '#007AFF',
+                                border: '1.5px solid #007AFF',
+                                borderRadius: 8,
+                                fontSize: 13,
+                                fontWeight: 600,
+                                textDecoration: 'none',
+                                whiteSpace: 'nowrap',
+                              }}
+                            >
+                              詳細を見る
+                            </a>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {/* Share Section */}
+                <div style={{ marginTop: 20 }}>
+                  <button
+                    onClick={() => setShareOpen((v) => !v)}
+                    style={{
+                      width: '100%',
+                      height: 48,
+                      backgroundColor: shareOpen ? '#F2F2F7' : '#34C759',
+                      color: shareOpen ? '#1C1C1E' : '#FFFFFF',
+                      border: 'none',
+                      borderRadius: 14,
+                      fontSize: 15,
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      fontFamily: 'inherit',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 6,
+                      transition: 'background-color 0.15s ease',
+                    }}
+                  >
+                    <span>{shareOpen ? '閉じる' : '📤 結果をシェア'}</span>
+                  </button>
+
+                  {shareOpen && (
+                    <div style={{
+                      marginTop: 10,
+                      backgroundColor: '#F2F2F7',
+                      borderRadius: 14,
+                      padding: 16,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 10,
+                    }}>
+                      <button
+                        onClick={handleShareX}
+                        style={{
+                          width: '100%',
+                          height: 46,
+                          backgroundColor: '#000000',
+                          color: '#FFFFFF',
+                          border: 'none',
+                          borderRadius: 10,
+                          fontSize: 15,
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                          fontFamily: 'inherit',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: 8,
+                        }}
+                      >
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="white">
+                          <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.744l7.737-8.835L1.254 2.25H8.08l4.258 5.63 5.906-5.63zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
+                        </svg>
+                        X (Twitter) でシェア
+                      </button>
+
+                      <button
+                        onClick={handleShareLINE}
+                        style={{
+                          width: '100%',
+                          height: 46,
+                          backgroundColor: '#06C755',
+                          color: '#FFFFFF',
+                          border: 'none',
+                          borderRadius: 10,
+                          fontSize: 15,
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                          fontFamily: 'inherit',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: 8,
+                        }}
+                      >
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="white">
+                          <path d="M19.365 9.863c.349 0 .63.285.63.631 0 .345-.281.63-.63.63H17.61v1.125h1.755c.349 0 .63.283.63.63 0 .344-.281.629-.63.629h-2.386c-.345 0-.627-.285-.627-.629V8.108c0-.345.282-.63.63-.63h2.386c.346 0 .627.285.627.63 0 .349-.281.63-.63.63H17.61v1.125h1.755zm-3.855 3.016c0 .27-.174.51-.432.596-.064.021-.133.031-.199.031-.211 0-.391-.09-.51-.25l-2.443-3.317v2.94c0 .344-.279.629-.631.629-.346 0-.627-.285-.627-.629V8.108c0-.27.173-.51.43-.595.06-.023.136-.033.194-.033.195 0 .375.104.495.254l2.462 3.33V8.108c0-.345.282-.63.63-.63.345 0 .63.285.63.63v4.771zm-5.741 0c0 .344-.282.629-.631.629-.345 0-.627-.285-.627-.629V8.108c0-.345.282-.63.63-.63.346 0 .628.285.628.63v4.771zm-2.466.629H4.917c-.345 0-.63-.285-.63-.629V8.108c0-.345.285-.63.63-.63.348 0 .63.285.63.63v4.141h1.756c.348 0 .629.283.629.63 0 .344-.281.629-.629.629M24 10.314C24 4.943 18.615.572 12 .572S0 4.943 0 10.314c0 4.811 4.27 8.842 10.035 9.608.391.082.923.258 1.058.59.12.301.079.766.038 1.08l-.164 1.02c-.045.301-.24 1.186 1.049.645 1.291-.539 6.916-4.078 9.436-6.975C23.176 14.393 24 12.458 24 10.314"/>
+                        </svg>
+                        LINEでシェア
+                      </button>
+
+                      <button
+                        onClick={handleCopyLink}
+                        style={{
+                          width: '100%',
+                          height: 46,
+                          backgroundColor: copyDone ? '#34C759' : '#FFFFFF',
+                          color: copyDone ? '#FFFFFF' : '#1C1C1E',
+                          border: copyDone ? 'none' : '1.5px solid #E5E5EA',
+                          borderRadius: 10,
+                          fontSize: 15,
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                          fontFamily: 'inherit',
+                          transition: 'all 0.2s ease',
+                        }}
+                      >
+                        {copyDone ? '✓ コピーしました' : '🔗 リンクをコピー'}
+                      </button>
+                    </div>
+                  )}
+                </div>
+
                 {/* Reset Button */}
                 <button
                   onClick={handleReset}
                   style={{
                     width: '100%',
                     height: 48,
-                    marginTop: 20,
+                    marginTop: 12,
                     backgroundColor: '#FFFFFF',
                     color: '#007AFF',
                     border: '1.5px solid #007AFF',
