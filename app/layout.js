@@ -1,5 +1,6 @@
 import { Geist } from 'next/font/google'
 import './globals.css'
+import { Analytics } from '@vercel/analytics/react'
 
 const geist = Geist({
   subsets: ['latin'],
@@ -13,7 +14,7 @@ export const metadata = {
 export default function RootLayout({ children }) {
   return (
     <html lang="ja" className={geist.className}>
-      <body>{children}</body>
+      <body>{children}<Analytics /></body>
     </html>
   )
 }
