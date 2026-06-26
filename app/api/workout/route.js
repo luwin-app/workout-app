@@ -1,16 +1,26 @@
 export async function POST(request) {
   try {
     const body = await request.json();
-    const { goal, time, equipment } = body;
+    const { goal, time, equipment, recentHistory } = body;
 
     if (!goal || !time || !Array.isArray(equipment) || equipment.length === 0) {
       return Response.json({ error: '入力が不足しています' }, { status: 400 });
     }
 
-    const userMessage = `目標：${goal}\nトレーニング時間：${time}\n使える器具：${equipment.join('、')}`;
+    let historyContext = '';
+    if (Array.isArray(recentHistory) && recentHistory.length > 0) {
+      historyContext = `\nユーザーの直近のトレーニング履歴（鍛えた部位）：${recentHistory.join('、')}`;
+    }
+
+    const userMessage = `目標：${goal}\nトレーニング時間：${time}\n使える器具：${equipment.join('、')}${historyContext}`;
+
+    const historyInstruction = recentHistory && recentHistory.length > 0
+      ? `ユーザーの直近のトレーニング履歴を考慮し、同じ部位ばかりにならないよう、バランスよく提案してください。前回鍛えた部位は避けて、回復を考慮した提案をしてください。`
+      : '';
 
     const systemPrompt = `あなたは優秀なパーソナルトレーナーです。ユーザーの目標・時間・使える器具に合わせて、
 今日トレーニングすべき部位と具体的なメニューを提案してください。
+${historyInstruction}
 必ず以下のJSON形式で返してください。他の文字は一切含めないでください：
 {
   "target_muscles": "今日鍛える部位（例：胸・肩・三頭筋）",
